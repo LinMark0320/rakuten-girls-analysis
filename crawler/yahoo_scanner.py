@@ -174,7 +174,12 @@ def search_member(session: requests.Session, member: str, max_pages: int = 2):
     """對單一成員關鍵字搜尋，回傳解析後的卡片 dict 清單（跨頁彙整、已去重）。"""
     seen_ids = set()
     results = []
-    keyword = f"{member} 樂天女孩 卡"
+    # 原本關鍵字是「{member} 樂天女孩 卡」，但 Yahoo 拍賣搜尋對多詞查詢採「全部詞都要命中」，
+    # 只要賣家標題寫的是英文「Rakuten Girls」而非中文「樂天女孩」（實測常見），整筆商品就會被
+    # 搜尋引擎排除、翻幾頁都找不到（已實測驗證：單獨搜成員名有結果，加上「樂天女孩」後同一筆消失）。
+    # 改成只留「{member} 卡」，靠 _hit_to_card 內建的 normalize_member 嚴格別名比對 + 多人合售
+    # 排除規則做二次過濾，噪音沒有明顯增加，但能撈到這整類漏網商品。
+    keyword = f"{member} 卡"
 
     for page in range(max_pages):
         params = {"p": keyword, "s1": "new", "o1": "d"}
