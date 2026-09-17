@@ -532,6 +532,18 @@
     .platform-badge-tag.yahoo { background: rgba(255, 138, 0, 0.15); color: #FFA940; border: 1px solid rgba(255, 138, 0, 0.3); }
     .platform-badge-tag.fb { background: rgba(24, 119, 242, 0.15); color: #5B9BFF; border: 1px solid rgba(24, 119, 242, 0.3); }
 
+    /* 跨隊客串卡／舊品牌沿革標籤：只在非樂天女孩本隊時顯示，見 CONTEXT.md「Cross-Squad Card」 */
+    .squad-badge-tag {
+      font-size: 10.5px;
+      padding: 2px 7px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      background: rgba(139, 95, 191, 0.15);
+      color: #B38FE0;
+      border: 1px solid rgba(139, 95, 191, 0.35);
+      white-space: nowrap;
+    }
+
     /* TIER LIST STYLES */
     .tier-filter-tabs {
       display: flex;
@@ -1925,10 +1937,14 @@
       const removeBtn = c.source === "fb_paste"
         ? `<span style="cursor:pointer;color:var(--text-muted);" onclick="event.stopPropagation();removeFbCard('${c.platform_item_id}')" title="移除這筆本機記錄">🗑</span>`
         : "";
+      // 跨隊客串卡／舊品牌沿革：非樂天女孩本隊發行的卡才顯示品牌標籤，見 CONTEXT.md「Cross-Squad Card」
+      const squadTag = (c.squad_brand && c.squad_brand !== "樂天女孩")
+        ? `<span class="squad-badge-tag" title="非樂天女孩本隊發行，是成員跨隊客串或舊品牌沿革的卡">${c.squad_brand}</span>`
+        : "";
       return `
         <div class="result-card" data-card-type="${cardType}" onclick="window.open('${href}', '_blank')">
           <div class="result-card-top">
-            <span class="result-card-member">${c.member_name || "未知成員"}</span>
+            <span class="result-card-member">${c.member_name || "未知成員"}${squadTag ? ` ${squadTag}` : ""}</span>
             <span class="status-pill ${status}">${statusLabel}</span>
           </div>
           <div class="result-card-title">${(c.title || "").replace(/</g, "&lt;")}</div>
@@ -2006,6 +2022,10 @@
         const platformTag = c.platform === "facebook"
           ? `<span class="platform-badge-tag fb">FB社團</span>`
           : `<span class="platform-badge-tag yahoo">Yahoo</span>`;
+        // 跨隊客串卡／舊品牌沿革：非樂天女孩本隊發行的卡才顯示品牌標籤，見 CONTEXT.md「Cross-Squad Card」
+        const squadTag = (c.squad_brand && c.squad_brand !== "樂天女孩")
+          ? `<span class="squad-badge-tag" title="非樂天女孩本隊發行，是成員跨隊客串或舊品牌沿革的卡">${c.squad_brand}</span>`
+          : "";
         const statusNote = "✅ 已結標售出";
         const href = c.item_url ? c.item_url.replace(/"/g, "&quot;") : "";
         const title = (c.title || "").replace(/</g, "&lt;");
@@ -2015,7 +2035,7 @@
         return `
           <tr>
             <td>${tierTag}</td>
-            <td class="member-cell">${c.member_name}</td>
+            <td class="member-cell">${c.member_name}${squadTag ? ` ${squadTag}` : ""}</td>
             <td>${titleCell}${meta ? `<div class="result-card-meta" style="margin-top:4px;">${meta}</div>` : ""}</td>
             <td class="price-highlight-cell">${price}</td>
             <td>${platformTag}</td>
@@ -2126,6 +2146,7 @@
         num_bids: 0,
         status: "BIDDING",
         card_type: fbParsedDraft.cardType,
+        squad_brand: "樂天女孩",
         serial_number: fbParsedDraft.serial ? fbParsedDraft.serial.serial_number : null,
         is_first_num: fbParsedDraft.serial ? fbParsedDraft.serial.is_first_num : false,
         is_last_num: fbParsedDraft.serial ? fbParsedDraft.serial.is_last_num : false,

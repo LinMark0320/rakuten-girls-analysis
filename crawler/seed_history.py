@@ -16,6 +16,7 @@ index.html 既有內容中，本來就標註了 Yahoo 商品 ID（#101763207119 
 from crawler import db
 from crawler.members import normalize_member
 from crawler.card_classifier import classify_card_type, extract_serial_number
+from crawler.yahoo_scanner import classify_squad_brand
 
 # (member, title, price, num_bids, status, item_id, seller_name, seller_location, year)
 _SEED_ROWS = [
@@ -53,6 +54,7 @@ def build_seed_cards() -> list[dict]:
             "num_bids": num_bids,
             "status": status,
             "card_type": classify_card_type(title),
+            "squad_brand": classify_squad_brand(title),
             "serial_number": serial.get("serial_number"),
             "is_first_num": serial.get("is_first_num", False),
             "is_last_num": serial.get("is_last_num", False),

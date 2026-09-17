@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS cards (
     num_bids         INTEGER DEFAULT 0,
     status           TEXT NOT NULL DEFAULT 'BIDDING',
     card_type        TEXT,
+    squad_brand      TEXT DEFAULT '樂天女孩',
     serial_number    TEXT,
     is_first_num     INTEGER DEFAULT 0,
     is_last_num      INTEGER DEFAULT 0,
@@ -54,7 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_price_history_item ON price_history(platform_item
 
 _CARD_COLUMNS = [
     "platform_item_id", "platform", "member_name", "year", "title", "price",
-    "num_bids", "status", "card_type", "serial_number", "is_first_num",
+    "num_bids", "status", "card_type", "squad_brand", "serial_number", "is_first_num",
     "is_last_num", "image_url", "item_url", "seller_name", "seller_location",
     "source",
 ]
@@ -73,6 +74,11 @@ def get_connection(db_path=DEFAULT_DB_PATH) -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
+    # squad_brand 是後來才加的欄位，既有的 cards.db 不會因為上面的
+    # CREATE TABLE IF NOT EXISTS 自動補上，需要額外遷移一次。
+    existing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(cards)")}
+    if "squad_brand" not in existing_cols:
+        conn.execute("ALTER TABLE cards ADD COLUMN squad_brand TEXT DEFAULT '樂天女孩'")
     conn.commit()
 
 

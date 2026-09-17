@@ -54,6 +54,66 @@ _CARD_CATEGORY_IDS = {"2092107302", "20992", "2092073959", "2092073961"}
 # 同樣不是真實開價）。兩種都沒有真實成交/開價意義，會嚴重污染行情數據。
 _NOT_FOR_SALE_MARKERS = ("純展非賣", "非賣品", "「收」", "收購", "求購")
 
+# 部分成員別名（如「Kira」「Michelle」「Kaho」）本身是常見英文字/名字，關鍵字搜尋
+# 放寬成「{member} 卡」後，容易撞名撈到完全無關的商品（實測發現過 NBA 球員卡
+# 「Kira Lewis JR.」、精品包型號「Kira 鏈條小包」）。因此比對到成員別名後，還要求
+# 標題同時出現團名相關字眼才收錄——真正的樂天女孩卡標題幾乎都會寫團名，此規則
+# 不太會誤傷真實資料，卻能把撞名雜訊擋掉。
+#
+# 除了樂天女孩本隊，成員本人跨隊客串其他啦啦隊/應援團發行的卡也一併收錄
+# （見 CONTEXT.md「Cross-Squad Card」）——已逐一查證這些名字組合裡的成員
+# 都是同一人跨隊接案，不是撞名：
+#   慕獅女孩 Muse Girls（新竹攻城獅）：彭彭、岱縈、熊霓
+#   桃氣女孩 Peach Girls（桃園雲豹飛將）：林穎樂、禹菡、金佳垠
+#   臺北伊斯特 Tokki Cutie：高橋佳帆
+#   樂天桃猿啦啦女孩 CHEER LEADER（2023 舊系列名）：禹菡、凱伊，其實就是樂天女孩本隊
+# 「Lamigirls / Lamigo」是樂天桃猿 2020 年由 Rakuten 冠名前的舊隊名，同樣視為本隊歷史資料。
+#
+# 唯一例外：「笑笑」對到的「中信兄弟 passion sisters」已查證是撞名、不同人（樂天女孩的
+# 笑笑是劉姿妤，2025 年才從電豹女跳槽過來；passion sisters 的笑笑 2022 年就在、2023 年
+# 就離隊，時間線對不上），所以刻意不把 passion sisters／中信兄弟 加進這份清單。
+#
+# 「樂天」單獨一個詞也放進來了：有賣家固定用「樂天 {member} ... brg 10級鑑定卡 ...簽名卡」
+# 這種模板標題、沒寫「樂天女孩」也沒寫「樂天桃猿」。代價是「樂天」本身也是樂天集團
+# 通用品牌字（樂天市場、樂天Kobo 等），理論上仍有極小機率撞到不相關的樂天系商品，
+# 這是已知取捨、經使用者確認可接受。
+_GROUP_ANCHOR_TERMS = (
+    "樂天女孩", "樂天桃猿", "樂天", "啦啦隊", "啦啦女孩", "rkg", "rakuten girls",
+    "lamigirls", "lamigo",
+    "慕獅女孩", "muse girls",
+    "桃氣女孩", "peach girls",
+    "臺北伊斯特", "台北伊斯特", "tokki cutie",
+)
+
+# 「樂天女孩」偶爾會被賣家打成「樂天 女孩卡」（中間多一個空格），額外用正則兼容
+_GROUP_ANCHOR_SPACED_RE = re.compile(r"樂天\s*女孩")
+
+
+def _has_group_anchor(title: str) -> bool:
+    lowered = title.lower()
+    if any(term in lowered for term in _GROUP_ANCHOR_TERMS):
+        return True
+    return bool(_GROUP_ANCHOR_SPACED_RE.search(title))
+
+
+# 依序比對，判斷這張卡實際上是哪個品牌發行的（見 CONTEXT.md「Cross-Squad Card」
+# 「Legacy Branding」）。_has_group_anchor 通過後才會呼叫這個函式，所以命中不到
+# 任何規則時，預設值就是樂天女孩本隊。
+_SQUAD_BRAND_RULES = (
+    ("Lamigirls（舊名）", ("lamigirls", "lamigo")),
+    ("慕獅女孩 Muse Girls", ("慕獅女孩", "muse girls")),
+    ("桃氣女孩 Peach Girls", ("桃氣女孩", "peach girls")),
+    ("臺北伊斯特 Tokki Cutie", ("臺北伊斯特", "台北伊斯特", "tokki cutie")),
+)
+
+
+def classify_squad_brand(title: str) -> str:
+    lowered = title.lower()
+    for brand, markers in _SQUAD_BRAND_RULES:
+        if any(m in lowered for m in markers):
+            return brand
+    return "樂天女孩"
+
 REQUEST_TIMEOUT = 15
 MIN_DELAY_SEC = 1.5
 MAX_DELAY_SEC = 3.0
@@ -133,6 +193,9 @@ def _hit_to_card(hit: dict) -> dict | None:
     if member is None:
         return None
 
+    if not _has_group_anchor(title):
+        return None
+
     item_id = hit.get("ec_productid")
     item_url = hit.get("ec_item_url") or ""
     if not item_id and item_url:
@@ -167,6 +230,7 @@ def _hit_to_card(hit: dict) -> dict | None:
         "num_bids": num_bids,
         "status": status,
         "card_type": classifier_hit,
+        "squad_brand": classify_squad_brand(title),
         "serial_number": serial.get("serial_number"),
         "is_first_num": serial.get("is_first_num", False),
         "is_last_num": serial.get("is_last_num", False),
