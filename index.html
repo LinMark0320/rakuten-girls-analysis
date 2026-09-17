@@ -512,9 +512,6 @@
     .member-cell {
       font-weight: 700;
       color: var(--text-primary);
-      display: flex;
-      align-items: center;
-      gap: 8px;
     }
 
     .price-highlight-cell {
@@ -1870,7 +1867,8 @@
 
     function getAllCards() {
       const base = (window.RG_CARDS_DATA && window.RG_CARDS_DATA.cards) || [];
-      return base.concat(loadFbPastedCards());
+      // 已下架流標（沒人出到底價、不了了之的拍賣）對賣家定價沒有參考價值，全站一律不顯示。
+      return base.concat(loadFbPastedCards()).filter(c => c.status !== "ENDED_UNSOLD");
     }
 
     let currentChipMember = "";
@@ -1994,8 +1992,8 @@
         return;
       }
 
-      statusEl.innerHTML = `僅列出各平台「已經成交」的真實紀錄（共 <b>${historicalCards.length}</b> 筆，不含正在競標中或流標的商品），`
-        + `列出每位成員追蹤到的最高成交價；正在競標中的商品請至上方「即時檢索過濾專區」查看，會隨 `
+      statusEl.innerHTML = `資料庫目前共有 <b>${historicalCards.length}</b> 筆各平台「已經成交」的真實紀錄（不含正在競標中或流標的商品），`
+        + `下表已依成員去重，列出 <b>${rows.length}</b> 位成員各自追蹤到的最高成交價；正在競標中的商品請至上方「即時檢索過濾專區」查看，會隨 `
         + `<code>python run_scanner.py</code> 重新整理自動更新：`;
 
       tbody.innerHTML = rows.map(c => {
@@ -2050,11 +2048,31 @@
       document.body.style.overflow = "";
     }
 
+    // 把 "2026-09-17T04:06:14+00:00" 這種 ISO 時間，轉成瀏覽器本機時區的
+    // 「幾分鐘/小時/天前（含實際日期時間）」，比原始 ISO 字串直觀好讀。
+    function formatRelativeTime(iso) {
+      if (!iso) return "未知時間";
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+
+      const pad = n => String(n).padStart(2, "0");
+      const absolute = `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+      const diffMin = Math.round((Date.now() - d.getTime()) / 60000);
+      let relative;
+      if (diffMin < 1) relative = "剛剛";
+      else if (diffMin < 60) relative = `${diffMin} 分鐘前`;
+      else if (diffMin < 1440) relative = `${Math.round(diffMin / 60)} 小時前`;
+      else relative = `${Math.round(diffMin / 1440)} 天前`;
+
+      return `${absolute}（${relative}）`;
+    }
+
     function initDataStatus() {
       const el = document.getElementById("dataStatus");
       const data = window.RG_CARDS_DATA;
       if (data && data.total_count > 0) {
-        el.textContent = `✅ 已載入 ${data.total_count} 筆卡片資料（產出於 ${data.exported_at || "未知時間"}，執行 python run_scanner.py 可更新）`;
+        el.textContent = `✅ 已載入 ${data.total_count} 筆卡片資料（上次更新：${formatRelativeTime(data.exported_at)}，執行 python run_scanner.py 可更新）`;
         el.className = "search-zone-status ok";
       } else {
         el.textContent = "⚠️ 尚未偵測到 data/cards_data.js，目前僅能顯示你手動用下方 FB 貼文解析器加入的資料。請先在 crawler 目錄執行 python run_scanner.py 產生完整資料。";
