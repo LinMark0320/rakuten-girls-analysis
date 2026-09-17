@@ -1,8 +1,19 @@
 @echo off
 chcp 65001 >nul
 title 樂天女孩卡價監控 - 一鍵更新並發布
+cd /d "%~dp0"
 
+if /I "%~1"=="/scheduled" (
+    call :main >> "%~dp0update_log.txt" 2>&1
+    exit /b %ERRORLEVEL%
+) else (
+    call :main
+)
+exit /b %ERRORLEVEL%
+
+:main
 echo ======================================================
+echo    %date% %time%
 echo    🚀 樂天女孩卡二級市場行情 - 一鍵自動更新與發布
 echo ======================================================
 echo.
@@ -12,7 +23,7 @@ python run_scanner.py
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo ❌ 爬蟲執行失敗，請檢查網路連線或 Python 環境！
-    pause
+    if /I not "%~1"=="/scheduled" pause
     exit /b %ERRORLEVEL%
 )
 
@@ -27,7 +38,7 @@ git push origin main
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo ❌ 推送失敗，請檢查 GitHub 連線權限！
-    pause
+    if /I not "%~1"=="/scheduled" pause
     exit /b %ERRORLEVEL%
 )
 
@@ -38,4 +49,5 @@ echo  🌐 線上網頁將在 30~60 秒內自動更新生效：
 echo     https://linmark0320.github.io/rakuten-girls-analysis/
 echo ======================================================
 echo.
-pause
+if /I not "%~1"=="/scheduled" pause
+exit /b 0
