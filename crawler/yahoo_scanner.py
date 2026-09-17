@@ -49,6 +49,11 @@ _YEAR_RE = re.compile(r"\b(202[3-6])\b")
 # 「偶像、球員卡與郵幣」相關類目，僅供過濾雜物用的輔助訊號，不作為唯一硬性條件
 _CARD_CATEGORY_IDS = {"2092107302", "20992", "2092073959", "2092073961"}
 
+# 收藏圈慣用標記：「純展非賣」是賣家秀收藏、標價是假的展示用數字；
+# 「收」「收購」「求購」則是反過來的求購貼文（借用拍賣格式張貼求購訊息，
+# 同樣不是真實開價）。兩種都沒有真實成交/開價意義，會嚴重污染行情數據。
+_NOT_FOR_SALE_MARKERS = ("純展非賣", "非賣品", "「收」", "收購", "求購")
+
 REQUEST_TIMEOUT = 15
 MIN_DELAY_SEC = 1.5
 MAX_DELAY_SEC = 3.0
@@ -113,6 +118,9 @@ def _hit_to_card(hit: dict) -> dict | None:
     """
     title = hit.get("ec_title") or ""
     if not title:
+        return None
+
+    if any(marker in title for marker in _NOT_FOR_SALE_MARKERS):
         return None
 
     # 賣場常見「多人整套／全隊合售」大量出貨標題，一次會提到 3 位以上不同成員，
