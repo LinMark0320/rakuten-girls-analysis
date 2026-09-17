@@ -8,11 +8,14 @@ Yahoo 拍賣掃描器。
    ec_priority_items），欄位包含 ec_productid、ec_title、ec_price、ec_numbids、
    ec_endtime、ec_seller、ec_location、ec_item_url 等，遠比解析頁面上的 hashed CSS
    class（styled-components 產生，隨每次部署改變、不穩定）可靠。
-2. Yahoo 拍賣公開搜尋只索引「目前仍上架」的商品，已結標下架的拍賣不會出現在搜尋結果中，
-   因此本掃描器對「已結標售出」的判定，是用「前一輪還在 BIDDING、這一輪從搜尋結果消失」
-   來偵測候選商品，再單獨對該商品的個別頁面（/item/{id}）發一次請求，讀取同樣內嵌的
-   isoredux-data JSON（item.soldQuantity 等欄位）確認最終是否售出與成交價。
-   2023–2025 年的歷史成交資料，本來就不可能從「目前上架中」的搜尋結果反推得到，
+2. 純競標格式（有人喊價、倒數結標）的商品，結標下架後不會出現在搜尋結果中，因此對這類商品
+   「已結標售出」的判定，是用「前一輪還在 BIDDING、這一輪從搜尋結果消失」來偵測候選商品，
+   再單獨對該商品的個別頁面（/item/{id}）發一次請求，讀取同樣內嵌的 isoredux-data JSON
+   （item.soldQuantity 等欄位）確認最終是否售出與成交價（見 reconcile_ended_auctions）。
+   但直購／一口價格式的賣場商品，賣出後搜尋結果「仍然」會留著這筆刊登，只是 ec_stock_status
+   會變成 "0"、ec_buy_count 會 >= 1，因此這類商品在單次掃描當下就能直接判定為真實成交，
+   不必等它從搜尋消失（見 _hit_to_card；已比對已知真實成交案例驗證過此訊號可靠）。
+   2023–2025 年更早期、已經從兩種搜尋管道都撈不到任何蛛絲馬跡的歷史成交資料，
    仍須仰賴 seed_history.py 與前端 FB 貼文解析器補完（見 ADR 0001）。
 """
 import argparse
@@ -134,6 +137,15 @@ def _hit_to_card(hit: dict) -> dict | None:
     num_bids = int(num_bids_raw) if str(num_bids_raw).strip().isdigit() else 0
     price = _to_int_price(hit.get("ec_price"), hit.get("ec_buyprice"), hit.get("ec_listprice"))
 
+    # 直購／一口價賣場商品賣出後，Yahoo 拍賣搜尋結果「仍然」會留著這筆刊登（跟純競標格式
+    # 結標即從搜尋消失不同），差別只在 ec_stock_status 會變成 "0"（庫存歸零）且
+    # ec_buy_count 會 >= 1（已被買走過）。經實測比對過已知真實成交案例（高佳彬 8/10 親簽卡
+    # #101763207119）完全吻合，因此掃描階段就能直接判定為真實成交，不必等 reconcile 流程。
+    stock_status = hit.get("ec_stock_status")
+    buy_count_raw = str(hit.get("ec_buy_count") or "0").strip()
+    is_confirmed_sold_out = stock_status == "0" and buy_count_raw not in ("", "0")
+    status = db.STATUS_SOLD if is_confirmed_sold_out else db.STATUS_BIDDING
+
     classifier_hit = classify_card_type(title)
     serial = extract_serial_number(title) or {}
 
@@ -145,7 +157,7 @@ def _hit_to_card(hit: dict) -> dict | None:
         "title": title,
         "price": price,
         "num_bids": num_bids,
-        "status": db.STATUS_BIDDING,
+        "status": status,
         "card_type": classifier_hit,
         "serial_number": serial.get("serial_number"),
         "is_first_num": serial.get("is_first_num", False),
