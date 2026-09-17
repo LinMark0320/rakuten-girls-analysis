@@ -1970,8 +1970,11 @@
       if (!tbody || !statusEl) return;
 
       const cards = getAllCards();
+      // 此表只呈現「已有結果」的歷史紀錄（已結標售出 / 已下架流標），
+      // 正在進行中的競標（BIDDING）留給上方「即時檢索過濾專區」呈現，避免兩區內容重複。
+      const historicalCards = cards.filter(c => c.status === "SOLD" || c.status === "ENDED_UNSOLD");
       const bestByMember = {};
-      cards.forEach(c => {
+      historicalCards.forEach(c => {
         if (!c.member_name || !c.price) return;
         const cur = bestByMember[c.member_name];
         if (!cur || c.price > cur.price) bestByMember[c.member_name] = c;
@@ -1985,12 +1988,13 @@
       });
 
       if (!rows.length) {
-        statusEl.textContent = "尚無資料，請先執行 python run_scanner.py，或用下方 FB 貼文解析器手動加入一筆。";
+        statusEl.textContent = "尚無已結束的歷史成交資料，請先執行 python run_scanner.py 讓拍賣結標後回填，或用下方 FB 貼文解析器手動加入一筆。";
         tbody.innerHTML = "";
         return;
       }
 
-      statusEl.innerHTML = `依資料庫目前 <b>${cards.length}</b> 筆卡片，列出每位成員目前追蹤到的最高單價紀錄，會隨 `
+      statusEl.innerHTML = `僅列出「已結標售出 / 已下架流標」的歷史紀錄（共 <b>${historicalCards.length}</b> 筆），`
+        + `列出每位成員追蹤到的最高單價紀錄；正在競標中的商品請至上方「即時檢索過濾專區」查看，會隨 `
         + `<code>python run_scanner.py</code> 重新整理自動更新：`;
 
       tbody.innerHTML = rows.map(c => {
@@ -2003,9 +2007,7 @@
         const platformTag = c.platform === "facebook"
           ? `<span class="platform-badge-tag fb">FB社團</span>`
           : `<span class="platform-badge-tag yahoo">Yahoo</span>`;
-        const statusNote = c.status === "SOLD" ? "✅ 已結標售出"
-          : c.status === "ENDED_UNSOLD" ? "已下架流標"
-          : (c.num_bids ? `🔥 競標中，出價 ${c.num_bids} 次` : "🔥 上架中");
+        const statusNote = c.status === "SOLD" ? "✅ 已結標售出" : "已下架流標（開價參考）";
         const href = c.item_url ? c.item_url.replace(/"/g, "&quot;") : "";
         const title = (c.title || "").replace(/</g, "&lt;");
         const titleCell = href
