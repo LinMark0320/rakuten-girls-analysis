@@ -1,5 +1,9 @@
 @echo off
 chcp 65001 >nul
+rem 透過 WScript.Shell.Run 隱藏視窗啟動時，Python 拿不到正確的主控台編碼資訊，
+rem 會退回系統預設的 Big5 猜編碼，導致中文全部印成亂碼。強制指定 UTF-8，
+rem 讓 Python 不要用猜的，這樣不管有沒有真的主控台視窗，輸出都一定正確。
+set "PYTHONUTF8=1"
 title 樂天女孩卡價監控 - 一鍵更新並發布
 cd /d "%~dp0"
 
