@@ -242,17 +242,12 @@ def _hit_to_card(hit: dict) -> dict | None:
     }
 
 
-def search_member(session: requests.Session, member: str, max_pages: int = 2):
-    """對單一成員關鍵字搜尋，回傳解析後的卡片 dict 清單（跨頁彙整、已去重）。"""
-    seen_ids = set()
+def _search_keyword(session: requests.Session, keyword: str, max_pages: int, seen_ids: set):
+    """對單一關鍵字搜尋，回傳解析後的卡片 dict 清單（跨頁彙整）。
+    seen_ids 由呼叫端傳入並就地更新，讓 search_member() 能跨多個別名關鍵字共用同一份
+    去重集合（同一商品可能在搜「小紫」時出現、也在搜「邱紫庭」時出現）。
+    """
     results = []
-    # 原本關鍵字是「{member} 樂天女孩 卡」，但 Yahoo 拍賣搜尋對多詞查詢採「全部詞都要命中」，
-    # 只要賣家標題寫的是英文「Rakuten Girls」而非中文「樂天女孩」（實測常見），整筆商品就會被
-    # 搜尋引擎排除、翻幾頁都找不到（已實測驗證：單獨搜成員名有結果，加上「樂天女孩」後同一筆消失）。
-    # 改成只留「{member} 卡」，靠 _hit_to_card 內建的 normalize_member 嚴格別名比對 + 多人合售
-    # 排除規則做二次過濾，噪音沒有明顯增加，但能撈到這整類漏網商品。
-    keyword = f"{member} 卡"
-
     for page in range(max_pages):
         params = {"p": keyword, "s1": "new", "o1": "d"}
         if page > 0:
@@ -280,6 +275,29 @@ def search_member(session: requests.Session, member: str, max_pages: int = 2):
         total = ecsearch.get("totalhitcount") or 0
         if (page + 1) * 60 >= total:
             break
+        _polite_sleep()
+
+    return results
+
+
+def search_member(session: requests.Session, member: str, max_pages: int = 2):
+    """對單一成員搜尋，回傳解析後的卡片 dict 清單（跨頁彙整、已去重）。
+
+    對成員的「每一個」已知別名（含中文本名、藝名、韓文名、英文名，見
+    MEMBER_ALIASES）都各搜一次，不是只搜字典裡的標準名——實測發現部分成員
+    （如蜜卡登）賣家幾乎只用藝名「Mika」交易，標準中文名的搜尋結果幾乎是空的，
+    只搜標準名會系統性漏掉這整批商品。代價是搜尋次數變多（27 人、每人平均
+    2.5 個別名 ≈ 67 次），已知會拉長整體掃描時間，這是刻意的取捨。
+
+    每個關鍵字都只組成「{別名} 卡」兩個詞，不是「{別名} 樂天女孩 卡」：Yahoo
+    拍賣對多詞查詢採「全部詞都要命中」，賣家標題只要寫英文「Rakuten Girls」
+    而非中文「樂天女孩」，多這個詞就會讓整筆商品被搜尋引擎排除（已實測驗證）。
+    """
+    seen_ids = set()
+    results = []
+    for alias in MEMBER_ALIASES.get(member, [member]):
+        keyword = f"{alias} 卡"
+        results.extend(_search_keyword(session, keyword, max_pages, seen_ids))
         _polite_sleep()
 
     return results
